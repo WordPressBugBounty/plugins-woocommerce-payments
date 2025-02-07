@@ -200,6 +200,10 @@ class WC_REST_Payments_Settings_Controller extends WC_Payments_REST_Controller {
 						'description' => __( 'Monthly anchor for deposit scheduling when interval is set to monthly', 'woocommerce-payments' ),
 						'type'        => [ 'integer', 'null' ],
 					],
+					'reporting_export_language'            => [
+						'description' => __( 'The language for an exported report for transactions, deposits, or disputes.', 'woocommerce-payments' ),
+						'type'        => 'string',
+					],
 					'is_payment_request_enabled'           => [
 						'description'       => sprintf(
 							/* translators: %s: WooPayments */
@@ -521,6 +525,7 @@ class WC_REST_Payments_Settings_Controller extends WC_Payments_REST_Controller {
 				'deposit_status'                         => $this->wcpay_gateway->get_option( 'deposit_status' ),
 				'deposit_restrictions'                   => $this->wcpay_gateway->get_option( 'deposit_restrictions' ),
 				'deposit_completed_waiting_period'       => $this->wcpay_gateway->get_option( 'deposit_completed_waiting_period' ),
+				'reporting_export_language'              => $this->wcpay_gateway->get_option( 'reporting_export_language' ),
 				'current_protection_level'               => $this->wcpay_gateway->get_option( 'current_protection_level' ),
 				'advanced_fraud_protection_settings'     => $this->wcpay_gateway->get_option( 'advanced_fraud_protection_settings' ),
 				'is_migrating_stripe_billing'            => $is_migrating_stripe_billing ?? false,
@@ -549,6 +554,7 @@ class WC_REST_Payments_Settings_Controller extends WC_Payments_REST_Controller {
 		$this->update_is_saved_cards_enabled( $request );
 		$this->update_is_woopay_enabled( $request );
 		$this->update_is_woopay_global_theme_support_enabled( $request );
+		$this->update_reporting_export_language( $request );
 		$this->update_woopay_store_logo( $request );
 		$this->update_woopay_custom_message( $request );
 		$this->update_woopay_enabled_locations( $request );
@@ -946,9 +952,8 @@ class WC_REST_Payments_Settings_Controller extends WC_Payments_REST_Controller {
 		}
 
 		$woopay_enabled_locations = $request->get_param( 'woopay_enabled_locations' );
-		$wcpay_form_fields        = $this->wcpay_gateway->get_form_fields();
-		$all_locations            = $wcpay_form_fields['payment_request_button_locations']['options'];
 
+		$all_locations = $this->wcpay_gateway->form_fields['payment_request_button_locations']['options'];
 		WC_Payments::woopay_tracker()->woopay_locations_updated( $all_locations, $woopay_enabled_locations );
 
 		$this->wcpay_gateway->update_option( 'platform_checkout_button_locations', $woopay_enabled_locations );
@@ -1094,5 +1099,20 @@ class WC_REST_Payments_Settings_Controller extends WC_Payments_REST_Controller {
 		}
 
 		return $avs_check_enabled;
+	}
+
+	/**
+	 * Updates the "reporting_export_language" setting.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 */
+	private function update_reporting_export_language( WP_REST_Request $request ) {
+		if ( ! $request->has_param( 'reporting_export_language' ) ) {
+			return;
+		}
+
+		$reporting_export_language = $request->get_param( 'reporting_export_language' );
+
+		$this->wcpay_gateway->update_option( 'reporting_export_language', $reporting_export_language );
 	}
 }

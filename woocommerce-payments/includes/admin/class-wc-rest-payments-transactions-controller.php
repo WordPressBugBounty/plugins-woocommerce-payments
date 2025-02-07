@@ -98,6 +98,15 @@ class WC_REST_Payments_Transactions_Controller extends WC_Payments_REST_Controll
 				'permission_callback' => [ $this, 'check_permission' ],
 			]
 		);
+		register_rest_route(
+			$this->namespace,
+			'/' . $this->rest_base . '/(?P<transaction_id>\w+)',
+			[
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => [ $this, 'get_transaction' ],
+				'permission_callback' => [ $this, 'check_permission' ],
+			]
+		);
 	}
 
 	/**
@@ -168,6 +177,16 @@ class WC_REST_Payments_Transactions_Controller extends WC_Payments_REST_Controll
 		$filters    = $this->get_transactions_filters( $request );
 
 		return $this->forward_request( 'get_transactions_export', [ $filters, $user_email, $deposit_id, $locale ] );
+	}
+
+	/**
+	 * Retrieve transaction to respond with via API.
+	 *
+	 * @param WP_REST_Request $request Full data about the request.
+	 */
+	public function get_transaction( $request ) {
+		$transaction_id = $request->get_param( 'transaction_id' );
+		return $this->forward_request( 'get_transactions', [ 'transaction_id' ] );
 	}
 
 	/**
