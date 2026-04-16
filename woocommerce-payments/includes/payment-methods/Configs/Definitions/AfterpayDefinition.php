@@ -47,15 +47,6 @@ class AfterpayDefinition implements PaymentMethodDefinitionInterface {
 	}
 
 	/**
-	 * Get the Stripe PaymentMethod type.
-	 *
-	 * @return string
-	 */
-	public static function get_stripe_payment_method_type(): string {
-		return self::get_id();
-	}
-
-	/**
 	 * Get the customer-facing title of the payment method
 	 *
 	 * @param string|null $account_country Optional. The merchant's account country.

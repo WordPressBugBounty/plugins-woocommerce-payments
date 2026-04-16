@@ -53,11 +53,7 @@ class RestController extends \WP_REST_Controller {
 	 * Configure REST API routes.
 	 */
 	public function register_routes() {
-		// Public endpoint for the async price renderer. Only registered when
-		// cache-optimized mode is active.
-		// Intentionally unauthenticated: it serves anonymous visitors so the
-		// client-side JS can convert prices without a WC session.
-		if ( $this->multi_currency->is_cache_optimized_mode() ) {
+		if ( \WC_Payments_Features::is_mc_cache_optimized_enabled() ) {
 			register_rest_route(
 				$this->namespace,
 				'/' . $this->rest_base . '/public/config',

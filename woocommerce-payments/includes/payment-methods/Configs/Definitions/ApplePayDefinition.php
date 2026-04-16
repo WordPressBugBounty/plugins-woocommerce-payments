@@ -44,16 +44,6 @@ class ApplePayDefinition implements PaymentMethodDefinitionInterface {
 	}
 
 	/**
-	 * Get the Stripe PaymentMethod type.
-	 * Apple Pay is processed as a card payment by Stripe.
-	 *
-	 * @return string
-	 */
-	public static function get_stripe_payment_method_type(): string {
-		return 'card';
-	}
-
-	/**
 	 * Get the customer-facing title of the payment method
 	 *
 	 * @param string|null $account_country Optional. The merchant's account country.

@@ -349,9 +349,8 @@ class WC_Payments_Task_Disputes extends Task {
 						]
 					);
 				} catch ( \Exception $e ) {
-					// Return null so Database_Cache::get_or_add treats this as an error
-					// and does not cache the empty result (which would hide active disputes).
-					return null;
+					// Ensure an array is always returned, even if the API call fails.
+					return [];
 				}
 
 				$active_disputes = $response['data'] ?? [];
