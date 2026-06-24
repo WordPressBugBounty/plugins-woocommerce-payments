@@ -8,16 +8,9 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * REST controller for settings.
+ * REST controller for Payments survey feedback.
  */
-class WC_REST_Payments_Survey_Controller extends WP_REST_Controller {
-
-	/**
-	 * Endpoint namespace.
-	 *
-	 * @var string
-	 */
-	protected $namespace = 'wc/v3';
+class WC_REST_Payments_Survey_Controller extends WC_Payments_REST_Controller {
 
 	/**
 	 * Endpoint path.
@@ -27,19 +20,19 @@ class WC_REST_Payments_Survey_Controller extends WP_REST_Controller {
 	protected $rest_base = 'payments/survey';
 
 	/**
-	 * The HTTP client, used to forward the request to WPCom.
+	 * The HTTP client used to forward the request.
 	 *
-	 * @var WC_Payments_Http
+	 * @var WC_Payments_Http_Interface
 	 */
 	protected $http_client;
 
 	/**
 	 * The constructor.
-	 * WC_REST_Payments_Survey_Controller constructor.
 	 *
-	 * @param WC_Payments_Http_Interface $http_client - The HTTP client, used to forward the request to WPCom.
+	 * @param WC_Payments_Http_Interface $http_client The HTTP client used to forward the request.
 	 */
 	public function __construct( WC_Payments_Http_Interface $http_client ) {
+		// This endpoint forwards to WPCOM, so it uses the HTTP client instead of the base API client.
 		$this->http_client = $http_client;
 	}
 
@@ -47,30 +40,31 @@ class WC_REST_Payments_Survey_Controller extends WP_REST_Controller {
 	 * Configure REST API routes.
 	 */
 	public function register_routes() {
+		if ( ! WC_Payments_Features::is_reports_area_enabled() ) {
+			return;
+		}
+
 		register_rest_route(
 			$this->namespace,
-			'/' . $this->rest_base . '/payments-overview',
+			'/' . $this->rest_base . '/reports-feedback',
 			[
 				'methods'             => WP_REST_Server::CREATABLE,
-				'callback'            => [ $this, 'submit_payments_overview_survey' ],
+				'callback'            => [ $this, 'submit_reports_feedback_survey' ],
 				'permission_callback' => [ $this, 'check_permission' ],
 				'args'                => [
 					'rating'   => [
 						'type'              => 'string',
 						'required'          => true,
 						'enum'              => [
-							'very-unhappy',
-							'unhappy',
-							'neutral',
-							'happy',
-							'very-happy',
+							'thumbs-up',
+							'thumbs-down',
 						],
 						'validate_callback' => 'rest_validate_request_arg',
 					],
 					'comments' => [
 						'type'              => 'string',
 						'validate_callback' => 'rest_validate_request_arg',
-						'sanitize_callback' => 'wp_filter_nohtml_kses',
+						'sanitize_callback' => 'sanitize_textarea_field',
 					],
 				],
 			]
@@ -78,72 +72,61 @@ class WC_REST_Payments_Survey_Controller extends WP_REST_Controller {
 	}
 
 	/**
-	 * Submits the overview survey trhough the WPcom API.
+	 * Submits the reports feedback survey through the WPCOM API.
 	 *
-	 * @param WP_REST_Request $request the request being made.
+	 * @param WP_REST_Request $request The request being made.
 	 *
 	 * @return WP_REST_Response
 	 */
-	public function submit_payments_overview_survey( WP_REST_Request $request ): WP_REST_Response {
-		$comments = $request->get_param( 'comments' ) ?? '';
-		$rating   = $request->get_param( 'rating' ) ?? '';
+	public function submit_reports_feedback_survey( WP_REST_Request $request ): WP_REST_Response {
+		$comments = trim( wp_unslash( $request->get_param( 'comments' ) ?? '' ) );
+		$rating   = trim( wp_unslash( $request->get_param( 'rating' ) ?? '' ) );
 
 		if ( empty( $rating ) ) {
 			return new WP_REST_Response(
 				[
 					'success' => false,
-					'err'     => 'No answers provided',
+					'err'     => 'No rating provided',
 				],
 				400
 			);
 		}
 
-		$request_args     = [
-			'url'     => WC_Payments_API_Client::ENDPOINT_BASE . '/marketing/survey',
-			'method'  => 'POST',
-			'headers' => [
-				'Content-Type'    => 'application/json',
-				'X-Forwarded-For' => \WC_Geolocation::get_ip_address(),
+		// Jetpack Connection 1.27.0 added a default for this constant. Keep a fallback for older bundled versions.
+		defined( 'JETPACK__WPCOM_JSON_API_BASE' ) || define( 'JETPACK__WPCOM_JSON_API_BASE', 'https://public-api.wordpress.com' );
+
+		$wpcom_request = $this->http_client->wpcom_json_api_request_as_user(
+			'/marketing/survey',
+			'2',
+			[
+				'method'  => 'POST',
+				'headers' => [
+					'Content-Type' => 'application/json',
+				],
 			],
-		];
-		$request_body     = wp_json_encode(
 			[
 				'site_id'          => $this->http_client->get_blog_id(),
-				'survey_id'        => 'wcpay-payment-activity',
+				'survey_id'        => 'wcpay-reports-feedback',
 				'survey_responses' => [
-					'rating'        => $rating,
-					'comments'      => [ 'text' => $comments ],
-					'wcpay-version' => [ 'text' => WCPAY_VERSION_NUMBER ],
+					'rating'   => $rating,
+					'comments' => [ 'text' => $comments ],
 				],
 			]
 		);
-		$is_site_specific = true;
-		$use_user_token   = true;
 
-		$wpcom_response = $this->http_client->remote_request(
-			$request_args,
-			$request_body,
-			$is_site_specific,
-			$use_user_token
-		);
-
-		$wpcom_response_status_code = wp_remote_retrieve_response_code( $wpcom_response );
-
-		if ( 200 === $wpcom_response_status_code ) {
-			update_option( 'wcpay_survey_payment_overview_submitted', true );
+		if ( is_wp_error( $wpcom_request ) ) {
+			return new WP_REST_Response(
+				[
+					'success' => false,
+					'err'     => $wpcom_request->get_error_message(),
+				],
+				500
+			);
 		}
 
-		return new WP_REST_Response( $wpcom_response, $wpcom_response_status_code );
-	}
-
-	/**
-	 * Verify access.
-	 *
-	 * Override this method if custom permissions required.
-	 *
-	 * @return bool
-	 */
-	public function check_permission() {
-		return current_user_can( 'manage_woocommerce' );
+		return new WP_REST_Response(
+			json_decode( wp_remote_retrieve_body( $wpcom_request ) ),
+			wp_remote_retrieve_response_code( $wpcom_request )
+		);
 	}
 }
